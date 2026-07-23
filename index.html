@@ -61,6 +61,12 @@ select, input, textarea { font-family:inherit; font-size:13.5px; padding:7px 10p
 .addbtn { width:100%; border:1px dashed var(--baseline); background:transparent; color:var(--ink-3); border-radius:8px;
   padding:7px; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit; }
 .addbtn:hover { color:var(--acc); border-color:var(--acc); }
+.span-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:11px; }
+.stab { font-family:inherit; font-size:12.5px; font-weight:700; padding:5px 13px; border-radius:999px;
+  border:1px solid var(--border); background:var(--surface-1); color:var(--ink-2); cursor:pointer; }
+.stab.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+.stab .n { font-weight:600; opacity:.75; font-size:11.5px; }
+.task .m .sp { color:var(--acc); font-weight:700; }
 .ev { display:flex; gap:10px; padding:8px 4px; border-bottom:1px solid var(--grid); align-items:flex-start; }
 .ev:last-child { border-bottom:0; }
 .ev .dt { min-width:74px; text-align:center; font-variant-numeric:tabular-nums; }
@@ -137,6 +143,14 @@ select, input, textarea { font-family:inherit; font-size:13.5px; padding:7px 10p
     <!-- 업무 보드 -->
     <section class="panel">
       <h2>📌 업무 보드 <span class="cnt" id="task-cnt"></span></h2>
+      <div class="span-tabs" id="span-tabs">
+        <button class="stab on" data-span="">전체</button>
+        <button class="stab" data-span="금일">금일 할일</button>
+        <button class="stab" data-span="금주">금주 할일</button>
+        <button class="stab" data-span="금월">금월 할일</button>
+        <button class="stab" data-span="중기">중기 업무</button>
+        <button class="stab" data-span="연간">연간 업무</button>
+      </div>
       <div class="colwrap">
         <div class="col" data-st="대기"><h3>📥 대기 <span id="c-wait"></span></h3><div id="col-wait"></div>
           <button class="addbtn" data-st="대기">＋ 업무 추가</button></div>
@@ -185,7 +199,8 @@ select, input, textarea { font-family:inherit; font-size:13.5px; padding:7px 10p
       · <b>팀 공동 사용</b>: 화면 위 파란 배너의 <b>[공유파일 연결]</b>로 공유서버의 「팀업무보드_공유데이터.json」을 선택하면(최초 1회) 업무·일정·피드가 자동으로 팀 전체와 공유됩니다. 브라우저를 다시 열면 배너의 <b>[허용하고 재연결]</b> 클릭 한 번 — 허용 창에서 "모든 방문에서 허용"을 선택하면 다음부터 자동 연결됩니다. 제목 옆 상태가 <b>초록색 "공유 연결됨"</b>인지 확인하세요.<br>
       · <b>알람</b>: 일정에 알람을 설정하면 지정 시각에 알림창과 소리로 알려줍니다. <b>🔔 알림 허용</b>을 눌러두면 다른 창에서 일하는 중에도 Windows 알림으로 표시됩니다. (브라우저에 이 페이지가 열려 있어야 알람이 울립니다 — 아침에 한 번 열어두는 것을 권장)<br>
       · <b>★중요 일정</b>은 페이지가 닫혀 있어도 <b>텔레그램 자동 알림</b>이 발송됩니다 (팀장 PC가 5분마다 공유 일정을 확인, 알람 미설정 시 기본 30분 전 발송).<br>
-      · 업무 카드를 클릭하면 상세 내용 수정과 <b>댓글 소통</b>이 가능합니다. 왼쪽 색상: <span style="color:var(--down)">■ 높음</span> <span style="color:var(--warn)">■ 보통</span> <span style="color:var(--acc2)">■ 낮음</span>
+      · 업무 카드를 클릭하면 상세 내용 수정과 <b>댓글 소통</b>이 가능합니다. 왼쪽 색상: <span style="color:var(--down)">■ 높음</span> <span style="color:var(--warn)">■ 보통</span> <span style="color:var(--acc2)">■ 낮음</span> · 업무 <b>구분</b>(금일/금주/금월/중기/연간)은 보드 위 탭으로 골라 봅니다.<br>
+      · ⚠ 공유 연결은 반드시 <b>웹 주소로 열었을 때만</b> 가능합니다 (PC에 저장된 HTML 파일을 더블클릭해 열면 브라우저 보안 정책상 공유파일 선택창이 뜨지 않습니다). 즐겨찾기: <b>sangyoung7730.github.io/team-board</b>
     </p>
   </section>
 </div>
@@ -198,6 +213,9 @@ select, input, textarea { font-family:inherit; font-size:13.5px; padding:7px 10p
       <div class="full"><label>업무 제목</label><input id="t-title" placeholder="예: 30주 머천다이징 검수"></div>
       <div><label>담당자</label><select id="t-assignee">
         <option>박상영</option><option>임준혁</option><option>이종원</option><option>김한슬</option><option>팀 전체</option></select></div>
+      <div><label>구분</label><select id="t-span">
+        <option value="금일">금일 할일</option><option value="금주">금주 할일</option><option value="금월">금월 할일</option>
+        <option value="중기">중기 업무</option><option value="연간">연간 업무</option></select></div>
       <div><label>상태</label><select id="t-status"><option>대기</option><option>진행중</option><option>완료</option></select></div>
       <div><label>우선순위</label><select id="t-priority"><option value="high">높음</option><option value="mid" selected>보통</option><option value="low">낮음</option></select></div>
       <div><label>마감일</label><input type="date" id="t-due"></div>
@@ -400,6 +418,7 @@ function openTask(id, presetStatus) {
   $('m-title').textContent = t ? '업무 상세 · 소통' : '업무 추가';
   $('t-title').value = t ? t.title : '';
   $('t-assignee').value = t ? t.assignee : me();
+  $('t-span').value = t ? (t.span || '금일') : (spanFilter || '금일');
   $('t-status').value = t ? t.status : (presetStatus || '대기');
   $('t-priority').value = t ? t.priority : 'mid';
   $('t-due').value = t ? (t.due || '') : '';
@@ -427,7 +446,7 @@ $('cmt-add').addEventListener('click', () => {
 $('t-save').addEventListener('click', () => {
   const title = $('t-title').value.trim();
   if (!title) { toast('업무 제목을 입력하세요'); return; }
-  const fields = { title, assignee: $('t-assignee').value, status: $('t-status').value,
+  const fields = { title, assignee: $('t-assignee').value, span: $('t-span').value, status: $('t-status').value,
     priority: $('t-priority').value, due: $('t-due').value, desc: $('t-desc').value.trim() };
   if (editTaskId) {
     const t = DB.tasks.find(x => x.id === editTaskId);
@@ -548,20 +567,35 @@ refreshNotiBtn();
 
 /* ---- 렌더 ---- */
 const PRI = { high: '높음', mid: '보통', low: '낮음' };
+const SPAN_LABEL = { '금일': '금일', '금주': '금주', '금월': '금월', '중기': '중기', '연간': '연간' };
+let spanFilter = '';
+$('span-tabs').addEventListener('click', e => {
+  const b = e.target.closest('.stab'); if (!b) return;
+  spanFilter = b.dataset.span;
+  document.querySelectorAll('#span-tabs .stab').forEach(x => x.classList.toggle('on', x === b));
+  renderAll();
+});
 function taskCard(t) {
   const over = t.due && t.status !== '완료' && t.due < todayStr();
   const cmtN = (t.comments || []).length;
   return `<div class="task p-${t.priority}" data-id="${t.id}">
     <div class="t">${esc(t.title)}</div>
     <div class="m">
+      ${!spanFilter ? `<span class="sp">📆 ${esc(SPAN_LABEL[t.span] || t.span || '금일')}</span>` : ''}
       <span>👤 ${esc(t.assignee)}</span>
       ${t.due ? `<span class="${over ? 'over' : ''}">⏰ ${esc(t.due.slice(5))}${over ? ' 지연' : ''}</span>` : ''}
       ${cmtN ? `<span class="cmt">💬 ${cmtN}</span>` : ''}
     </div></div>`;
 }
 function renderAll() {
-  // 업무 보드
-  const by = st => DB.tasks.filter(t => t.status === st)
+  // 구분 탭 건수 표시
+  document.querySelectorAll('#span-tabs .stab').forEach(b => {
+    const sp = b.dataset.span;
+    const n = DB.tasks.filter(t => t.status !== '완료' && (!sp || (t.span || '금일') === sp)).length;
+    b.innerHTML = b.textContent.replace(/\s*\d+$/, '').replace(/\s*$/, '') + (n ? ' <span class="n">' + n + '</span>' : '');
+  });
+  // 업무 보드 (구분 필터 적용)
+  const by = st => DB.tasks.filter(t => t.status === st && (!spanFilter || (t.span || '금일') === spanFilter))
     .sort((a, b) => ({high:0,mid:1,low:2}[a.priority] - {high:0,mid:1,low:2}[b.priority]) || String(a.due || '9999').localeCompare(String(b.due || '9999')));
   const wait = by('대기'), doing = by('진행중'), done = by('완료');
   $('col-wait').innerHTML = wait.map(taskCard).join('');
