@@ -85,6 +85,9 @@ select, input, textarea { font-family:inherit; font-size:13.5px; padding:7px 10p
 .evform .full { grid-column:1/-1; }
 .evform label { font-size:11px; font-weight:700; color:var(--ink-3); display:block; margin-bottom:2px; }
 #alarm-zone { display:flex; flex-direction:column; gap:8px; }
+.share-banner { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:color-mix(in srgb, var(--acc) 10%, var(--surface-1));
+  border:1.5px solid var(--acc); border-radius:11px; padding:11px 15px; font-size:13.5px; font-weight:600; }
+.share-banner .btn { flex-shrink:0; }
 .alarm { background:color-mix(in srgb, var(--down) 12%, var(--surface-1)); border:1px solid var(--down); border-radius:10px;
   padding:10px 14px; display:flex; align-items:center; gap:10px; font-weight:700; }
 .alarm .x { margin-left:auto; }
@@ -126,6 +129,7 @@ select, input, textarea { font-family:inherit; font-size:13.5px; padding:7px 10p
     </div>
   </header>
 
+  <div class="share-banner" id="share-banner" style="display:none"></div>
   <div id="alarm-zone"></div>
   <div class="cards" id="kpis"></div>
 
@@ -178,7 +182,7 @@ select, input, textarea { font-family:inherit; font-size:13.5px; padding:7px 10p
 
   <section class="panel">
     <p class="note">
-      · <b>팀 공동 사용</b>: 상단 <b>📡 공유 연결</b>에서 공유서버의 「팀업무보드_공유데이터.json」을 선택하면(최초 1회) 업무·일정·피드가 자동으로 팀 전체와 공유됩니다. 브라우저를 다시 열면 「공유 연결」 → 허용 한 번이면 재연결됩니다.<br>
+      · <b>팀 공동 사용</b>: 화면 위 파란 배너의 <b>[공유파일 연결]</b>로 공유서버의 「팀업무보드_공유데이터.json」을 선택하면(최초 1회) 업무·일정·피드가 자동으로 팀 전체와 공유됩니다. 브라우저를 다시 열면 배너의 <b>[허용하고 재연결]</b> 클릭 한 번 — 허용 창에서 "모든 방문에서 허용"을 선택하면 다음부터 자동 연결됩니다. 제목 옆 상태가 <b>초록색 "공유 연결됨"</b>인지 확인하세요.<br>
       · <b>알람</b>: 일정에 알람을 설정하면 지정 시각에 알림창과 소리로 알려줍니다. <b>🔔 알림 허용</b>을 눌러두면 다른 창에서 일하는 중에도 Windows 알림으로 표시됩니다. (브라우저에 이 페이지가 열려 있어야 알람이 울립니다 — 아침에 한 번 열어두는 것을 권장)<br>
       · <b>★중요 일정</b>은 페이지가 닫혀 있어도 <b>텔레그램 자동 알림</b>이 발송됩니다 (팀장 PC가 5분마다 공유 일정을 확인, 알람 미설정 시 기본 30분 전 발송).<br>
       · 업무 카드를 클릭하면 상세 내용 수정과 <b>댓글 소통</b>이 가능합니다. 왼쪽 색상: <span style="color:var(--down)">■ 높음</span> <span style="color:var(--warn)">■ 보통</span> <span style="color:var(--acc2)">■ 낮음</span>
@@ -284,14 +288,46 @@ async function readRemote() {
   const t = await f.text();
   if (t && t.trim()) { try { const r = normalize(JSON.parse(t)); if (r) mergeDB(r); } catch (e) {} }
 }
+function showShareBanner(msg, btnLabel, action) {
+  const b = $('share-banner');
+  b.innerHTML = '<span>' + msg + '</span>';
+  const btn = document.createElement('button');
+  btn.className = 'btn primary'; btn.textContent = btnLabel;
+  btn.addEventListener('click', action);
+  b.appendChild(btn); b.style.display = 'flex';
+}
+function hideShareBanner() { $('share-banner').style.display = 'none'; }
+async function ensurePermission(interactive) {
+  if (!shareHandle) return false;
+  try {
+    let p = await shareHandle.queryPermission({ mode: 'readwrite' });
+    if (p !== 'granted' && interactive) p = await shareHandle.requestPermission({ mode: 'readwrite' });
+    return p === 'granted';
+  } catch (e) { return false; }
+}
+function needReconnect() {
+  setSt('공유파일 다시 허용 필요', false);
+  showShareBanner('📡 공유파일 접근을 다시 허용해 주세요. 허용 창에서 "모든 방문에서 허용"을 선택하면 다음부터 묻지 않습니다.', '허용하고 재연결', reconnect);
+}
+async function reconnect() {
+  if (await ensurePermission(true)) {
+    hideShareBanner();
+    await syncFrom(); await syncTo();
+    toast('공유 재연결 완료 — 팀 데이터와 동기화되었습니다');
+  } else toast('허용이 거부되었습니다 — [📡 공유 연결]에서 파일을 다시 선택해 주세요');
+}
 async function syncFrom() {
   if (!shareHandle) return;
+  if (!await ensurePermission(false)) { needReconnect(); return; }
   try { await readRemote(); save(); renderAll();
     setSt('📡 공유 연결됨 · 동기화 ' + new Date().toLocaleTimeString('ko-KR'), true);
-  } catch (e) { setSt('공유 읽기 실패 — 재연결 필요', false); }
+    hideShareBanner();
+  } catch (e) { setSt('공유 읽기 실패 — 공유서버(Z:) 연결 확인', false); }
 }
-async function syncTo() {
+let retryTimer = null;
+async function syncTo(isRetry) {
   if (!shareHandle) return false;
+  if (!await ensurePermission(false)) { needReconnect(); return false; }
   try {
     await readRemote();
     const w = await shareHandle.createWritable();
@@ -300,20 +336,33 @@ async function syncTo() {
     await w.close();
     save(); renderAll();
     setSt('📡 공유 저장 완료 · ' + new Date().toLocaleTimeString('ko-KR'), true);
+    hideShareBanner();
     return true;
-  } catch (e) { setSt('공유 저장 실패: ' + e.message, false); return false; }
+  } catch (e) {
+    setSt('공유 저장 실패(' + e.message + ') — 잠시 후 자동 재시도', false);
+    if (!isRetry) { clearTimeout(retryTimer); retryTimer = setTimeout(() => syncTo(true), 5000); }
+    return false;
+  }
 }
-function scheduleSync() { if (!shareHandle) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncTo, 1200); }
-async function connectShare() {
-  if (!window.showOpenFilePicker) { toast('이 브라우저는 공유파일을 지원하지 않습니다 — Edge/Chrome 사용'); return; }
+function scheduleSync() { if (!shareHandle) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => syncTo(), 1200); }
+async function pickShare() {
   try {
     [shareHandle] = await showOpenFilePicker({ types: [{ description: '팀업무보드 공유데이터', accept: { 'application/json': ['.json'] } }] });
     await idbPut('handle', shareHandle);
-    const p = await shareHandle.requestPermission({ mode: 'readwrite' });
-    if (p !== 'granted') { setSt('공유파일 권한 거부됨', false); return; }
+    if (!await ensurePermission(true)) { setSt('공유파일 권한 거부됨', false); return; }
     await syncFrom(); await syncTo();
     toast('공유파일 연결 완료 — 팀과 함께 저장됩니다');
   } catch (e) { if (e.name !== 'AbortError') setSt('공유 연결 실패: ' + e.message, false); }
+}
+async function connectShare() {
+  if (!window.showOpenFilePicker) { toast('이 브라우저는 공유 기능을 지원하지 않습니다 — Edge 또는 Chrome으로 열어주세요'); return; }
+  if (shareHandle && await ensurePermission(true)) {
+    hideShareBanner();
+    await syncFrom(); await syncTo();
+    toast('공유 연결 확인 — 동기화 완료');
+    return;
+  }
+  await pickShare();
 }
 $('btn-share').addEventListener('click', connectShare);
 $('btn-save').addEventListener('click', async () => {
@@ -325,13 +374,16 @@ $('btn-save').addEventListener('click', async () => {
     const h = await idbGet('handle');
     if (h && h.queryPermission) {
       shareHandle = h;
-      if (await h.queryPermission({ mode: 'readwrite' }) === 'granted') { await syncFrom(); return; }
-      setSt('공유 재연결 필요 — [📡 공유 연결] 클릭 후 허용', false);
-    } else setSt('공유 미연결 — [📡 공유 연결]에서 공유파일 선택', false);
+      if (await ensurePermission(false)) { await syncFrom(); return; }
+      needReconnect();
+    } else {
+      setSt('공유 미연결', false);
+      showShareBanner('📡 팀 공유가 아직 연결되지 않았습니다 — 공유서버(Z:)의 「팀업무보드_공유데이터.json」을 한 번만 선택해 주세요.', '공유파일 연결', pickShare);
+    }
   } catch (e) { setSt('공유 미연결', false); }
 })();
-setInterval(syncFrom, 2 * 60 * 1000);
-window.addEventListener('focus', syncFrom);
+setInterval(() => { if (shareHandle) syncFrom(); }, 2 * 60 * 1000);
+window.addEventListener('focus', () => { if (shareHandle) syncFrom(); });
 
 /* ---- 내 이름 ---- */
 const ME_KEY = 'teamboard_me';
